@@ -65,13 +65,13 @@ final class MSFSMTests: XCTestCase {
             .state(.highState)
                 .didEnter       { _ in print("Entering High State") }
                 .willLeave      { _ in print("Leaving High State") }
-                .on(.goToLow)   { _ in print("Going from High to Low") ; return .lowState }
+                .on(.goToLow)   { _,_ in print("Going from High to Low") ; return .lowState }
             .state(.lowState)
                 .didEnter       { _ in print("Entering Low State") }
                 .willLeave      { _ in print("Leaving Low State") }
-                .on(.goTohigh)  { _ in print("Going from Low to High") ; return .highState }
+                .on(.goTohigh)  { _,_ in print("Going from Low to High") ; return .highState }
         
-        let shouldBeLowState    = fsm.at(state: .highState, reactTo: .goToLow)
+        let shouldBeLowState    = fsm.reactTo(state: .highState, event: .goToLow, info: (()))
         XCTAssert(shouldBeLowState == .lowState)
     }
     
@@ -81,11 +81,11 @@ final class MSFSMTests: XCTestCase {
             .state(.highState)
                 .didEnter       { _ in print("Entering High State") }
                 .willLeave      { _ in print("Leaving High State") }
-                .on(.goToLow)   { _ in print("Going from High to Low") ; return .lowState }
+                .on(.goToLow)   { _,_ in print("Going from High to Low") ; return .lowState }
             .state(.lowState)
                 .didEnter       { _ in print("Entering Low State") }
                 .willLeave      { _ in print("Leaving Low State") }
-                .on(.goTohigh)  { _ in print("Going from Low to High") ; return .highState }
+                .on(.goTohigh)  { _,_ in print("Going from Low to High") ; return .highState }
                 .initial(.highState)
         
         fsm.activate()
@@ -112,7 +112,7 @@ final class MSFSMTests: XCTestCase {
                     print("Choose to graze or move")
                     return .takeGrazeOrMoveDecision
                 }
-                .on(.takeGrazeOrMoveDecision) { _ in
+                .on(.takeGrazeOrMoveDecision) { _,_ in
                     print("I decided to graze")
                     return .grazing  /* should be 50/50 */
                 }
@@ -124,7 +124,7 @@ final class MSFSMTests: XCTestCase {
                     print("There is nothing to do, I'm grazing, just wait for thinking time event")
                     return nil
                 }
-                .on(.takeGrazeOrMoveDecision) { _ in
+                .on(.takeGrazeOrMoveDecision) { _,_ in
                     print("I decided to move")
                     return .moving
                 }
@@ -139,7 +139,7 @@ final class MSFSMTests: XCTestCase {
                 .willLeave { _ in
                     print("Force end position")
                 }
-                .on(.endMove) { _ in
+                .on(.endMove) { _,_ in
                     print("I completed my move, I decide to graze")
                     return .grazing
                 }
@@ -151,20 +151,20 @@ final class MSFSMTests: XCTestCase {
                 .didEnter { _ in
                     sheepSubFSM.activate()
                 }
-                .update { _, time in
+                .update { time,_ in
                     sheepSubFSM.update(time: time)
                 }
                 .willLeave { _ in
                     sheepSubFSM.deactivate()
                 }
-                .on(.dogCameNear) { _ in
+                .on(.dogCameNear) { _,_ in
                     print("Remove sheep from think scheduler")
                     return .afraid
                 }
-                .exec(.takeGrazeOrMoveDecision) { _ in
+                .exec(.takeGrazeOrMoveDecision) { _,_ in
                     sheepSubFSM.process(event: .takeGrazeOrMoveDecision)
                 }
-                .exec(.endMove) { _ in
+                .exec(.endMove) { _,_ in
                     sheepSubFSM.process(event: .endMove)
                 }
             .state(.afraid)
@@ -178,7 +178,7 @@ final class MSFSMTests: XCTestCase {
                 .willLeave { _ in
                     print("Force end position")
                 }
-                .on(.endMove) { _ in
+                .on(.endMove) { _,_ in
                     print("I completed my run")
                     return .normal(sheepSubFSM)
                 }

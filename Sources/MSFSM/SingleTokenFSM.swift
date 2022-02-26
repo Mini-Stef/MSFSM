@@ -16,37 +16,47 @@ import Foundation   //  TimeInterval
 ///
 /// A class that defines a single token FSM
 ///
-public class SingleTokenFSM<StateType: FSMState, StateInfo, EventType: FSMEvent> {
+public class SingleTokenFSM<StateType: FSMState, InfoType, EventType: FSMEvent> {
     
     //------------------------------------------------------------------------------------------------------------------
     //  MARK:   -   Types
 
     /// State enter and leave callback
-    public typealias StateEnterOrLeaveCallback  = FSMStructure<StateType,StateInfo,EventType>.StateEnterOrLeaveCallback
+    public typealias StateEnterOrLeaveCallback  = FSMStructure<StateType,InfoType,EventType>.StateEnterOrLeaveCallback
 
     /// State update callback
-    public typealias StateUpdateCallback        = FSMStructure<StateType,StateInfo,EventType>.StateUpdateCallback
+    public typealias StateUpdateCallback        = FSMStructure<StateType,InfoType,EventType>.StateUpdateCallback
 
     /// A transition callback shall return the next state
-    public typealias TransitionCallback         = FSMStructure<StateType,StateInfo,EventType>.TransitionCallback
+    public typealias TransitionCallback         = FSMStructure<StateType,InfoType,EventType>.TransitionCallback
 
     /// A execution callback shall return the next state
-    public typealias ExecutionCallback          = FSMStructure<StateType,StateInfo,EventType>.ExecutionCallback
+    public typealias ExecutionCallback          = FSMStructure<StateType,InfoType,EventType>.ExecutionCallback
 
 
     //------------------------------------------------------------------------------------------------------------------
     //  MARK:   -   Properties
 
     /// The structure of the FSM
-    private var structure       = FSMStructure<StateType,StateInfo,EventType>()
+    private var structure                   = FSMStructure<StateType,InfoType,EventType>()
     
     /// The initial state when the FSM is activated
-    private var initialState:   StateType!
+    private var initialState:               StateType!
     
     /// The current FSM state
     public private(set) var currentState:   StateType!
     
+    /// The information for the callbacks
+    public private(set) var info:           InfoType
     
+    
+    //------------------------------------------------------------------------------------------------------------------
+    //  MARK:   -   Init
+    
+    public init(info: InfoType) {
+        self.info   = info
+    }
+
     //------------------------------------------------------------------------------------------------------------------
     //  MARK:   -   Building the FSM
     
@@ -55,14 +65,6 @@ public class SingleTokenFSM<StateType: FSMState, StateInfo, EventType: FSMEvent>
     ///
     public func state(_ state: StateType) -> Self {
         self.structure = self.structure.state(state)
-        return self
-    }
-    
-    ///
-    /// Sets the info for the state
-    ///
-    public func info(_ info: StateInfo) -> Self {
-        self.structure = self.structure.info(info)
         return self
     }
     
@@ -125,7 +127,7 @@ public class SingleTokenFSM<StateType: FSMState, StateInfo, EventType: FSMEvent>
     ///
     public func activate() {
         self.currentState   = self.initialState
-        self.structure.enter(state: self.currentState)
+        self.structure.enter(state: self.currentState, info: self.info)
     }
     
     ///
@@ -133,7 +135,7 @@ public class SingleTokenFSM<StateType: FSMState, StateInfo, EventType: FSMEvent>
     ///
     public func deactivate() {
         if let currentState = self.currentState {
-            self.structure.leave(state: currentState)
+            self.structure.leave(state: currentState, info: self.info)
             self.currentState  = nil
         }
     }
@@ -143,7 +145,7 @@ public class SingleTokenFSM<StateType: FSMState, StateInfo, EventType: FSMEvent>
     ///
     public func update(time:    TimeInterval) -> EventType? {
         if let currentState = self.currentState {
-            return self.structure.update(state: currentState, time: time)
+            return self.structure.update(state: currentState, time: time, info: self.info)
         }
         return nil
     }
@@ -159,8 +161,17 @@ public class SingleTokenFSM<StateType: FSMState, StateInfo, EventType: FSMEvent>
     ///
     public func process(event: EventType) {
         if let currentState = self.currentState {
-            self.currentState   = self.structure.at(state:    currentState,
-                                                    reactTo:  event)
+            self.currentState   = self.structure.reactTo(state: currentState,
+                                                         event: event,
+                                                         info:  self.info)
         }
+    }
+}
+
+
+//  Simplification for Void information
+public extension SingleTokenFSM where InfoType == Void {
+    convenience init() {
+        self.init(info: (()))
     }
 }
