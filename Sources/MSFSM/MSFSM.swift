@@ -39,12 +39,17 @@ public class FSMStructure<StateType: FSMState, StateInfo, EventType: FSMEvent> {
     public typealias StateEnterOrLeaveCallback  = ((StateInfo?) -> ())
 
     /// State update callback
-    public typealias StateUpdateCallback        = ((StateInfo?,TimeInterval) -> ())
+    public typealias StateUpdateCallback        = ((StateInfo?,TimeInterval) -> EventType?)
 
     ///
     /// A transition callback shall return the next state
     ///
     public typealias TransitionCallback = ((EventType) -> StateType)
+    
+    ///
+    /// An executon callback processes an event without changing the state
+    ///
+    public typealias ExecutionCallback  = ((EventType) -> ())
     
     ///
     /// A type that defines a state of the machine
@@ -69,13 +74,19 @@ public class FSMStructure<StateType: FSMState, StateInfo, EventType: FSMEvent> {
     
     /// The type for the state
     private typealias StateDef   = StateDefinition<StateInfo>
+    
+    /// The type for a transition or execution callback
+    private enum EventCallback {
+        case transition(TransitionCallback)
+        case execution(ExecutionCallback)
+    }
 
     //------------------------------------------------------------------------------------------------------------------
     //  MARK:   -   Properties
     
     /// The table of events per state
     private var eventTransitionTable    = [StateType:(stateDef: StateDef,
-                                                      events:   [EventType:TransitionCallback])]()
+                                                      events:   [EventType:EventCallback])]()
     
     //------------------------------------------------------------------------------------------------------------------
     //  MARK:   -   Init
@@ -98,7 +109,7 @@ public class FSMStructure<StateType: FSMState, StateInfo, EventType: FSMEvent> {
 
         //  Add a row in the event/transition table for that state
         self.eventTransitionTable[state]    = (stateDef:   stateDef,
-                                               events:     [EventType:TransitionCallback]())
+                                               events:     [EventType:EventCallback]())
         
         //  Note this is the last added state
         self.lastAddedStateDef              = stateDef
@@ -179,7 +190,29 @@ public class FSMStructure<StateType: FSMState, StateInfo, EventType: FSMEvent> {
         //  Add the event/transition to the table
         let tableRow        = self.eventTransitionTable[self.lastAddedStateDef!.state]!
         var eventsTable     = tableRow.events
-        eventsTable[event]  = transition
+        eventsTable[event]  = .transition(transition)
+        
+        
+        self.eventTransitionTable[self.lastAddedStateDef!.state] = (stateDef:   tableRow.stateDef,
+                                                                    events:     eventsTable)
+        
+        return self
+    }
+    
+    ///
+    /// Adds an event/execution pair to the last added state
+    ///
+    public func exec(_ event: EventType, execution: @escaping ExecutionCallback) -> Self {
+        
+        //  We must have a last added state in order to use this builder function
+        guard self.lastAddedStateDef != nil else {
+            fatalError("FSM Error: using .exec, but no last added state.")
+        }
+        
+        //  Add the event/transition to the table
+        let tableRow        = self.eventTransitionTable[self.lastAddedStateDef!.state]!
+        var eventsTable     = tableRow.events
+        eventsTable[event]  = .execution(execution)
         
         
         self.eventTransitionTable[self.lastAddedStateDef!.state] = (stateDef:   tableRow.stateDef,
@@ -202,9 +235,9 @@ public class FSMStructure<StateType: FSMState, StateInfo, EventType: FSMEvent> {
     /// The method to call regularly to perfor the current update of the state
     ///
     public func update(state:   StateType,
-                       time:    TimeInterval) {
-        self.eventTransitionTable[state]!.stateDef.updateClbk?(self.eventTransitionTable[state]!.stateDef.info,
-                                                               time)
+                       time:    TimeInterval) -> EventType? {
+        let info    = self.eventTransitionTable[state]!.stateDef.info
+        return self.eventTransitionTable[state]!.stateDef.updateClbk?(info, time)
     }
     
     ///
@@ -225,135 +258,18 @@ public class FSMStructure<StateType: FSMState, StateInfo, EventType: FSMEvent> {
     /// The didEnter method of the next state is executed (if any).
     ///
     public func at(state: StateType, reactTo event: EventType) -> StateType {
-        if let transition = self.eventTransitionTable[state]?.events[event] {
-            self.leave(state: state)
-            let nextState = transition(event)
-            self.enter(state: nextState)
-            return nextState
+        if let callback = self.eventTransitionTable[state]?.events[event] {
+            
+            switch callback {
+            case .transition(let transition):
+                self.leave(state: state)
+                let nextState = transition(event)
+                self.enter(state: nextState)
+                return nextState
+            case .execution(let execution):
+                execution(event)
+            }
         }
         return state
-    }
-}
-
-
-///
-/// A class that defines a single token FSM
-///
-public class SingleTokenFSM<StateType: FSMState, StateInfo, EventType: FSMEvent> {
-    
-    public typealias StateEnterOrLeaveCallback  = FSMStructure<StateType,StateInfo,EventType>.StateEnterOrLeaveCallback
-    public typealias StateUpdateCallback        = FSMStructure<StateType,StateInfo,EventType>.StateUpdateCallback
-    public typealias TransitionCallback         = FSMStructure<StateType,StateInfo,EventType>.TransitionCallback
-
-    private var structure       = FSMStructure<StateType,StateInfo,EventType>()
-    
-    private var initialState:   StateType!
-    public private(set) var currentState:   StateType!
-    
-    //------------------------------------------------------------------------------------------------------------------
-    //  MARK:   -   Building the FSM
-    
-    ///
-    /// Adds a state to the finite state machine
-    ///
-    public func state(_ state: StateType) -> Self {
-        self.structure = self.structure.state(state)
-        return self
-    }
-    
-    ///
-    /// Sets the info for the state
-    ///
-    public func info(_ info: StateInfo) -> Self {
-        self.structure = self.structure.info(info)
-        return self
-    }
-    
-    ///
-    /// Modifies the didEnter callback of the last added state
-    ///
-    public func didEnter(_ clbk: @escaping StateEnterOrLeaveCallback) -> Self {
-        self.structure = self.structure.didEnter(clbk)
-        return self
-    }
-
-    ///
-    /// Modifies the update callback of the last added state
-    ///
-    public func update(_ clbk: @escaping StateUpdateCallback) -> Self {
-        self.structure = self.structure.update(clbk)
-        return self
-    }
-
-    ///
-    /// Modifies the willLeave callback of the last added state
-    ///
-    public func willLeave(_ clbk: @escaping StateEnterOrLeaveCallback) -> Self {
-        self.structure = self.structure.willLeave(clbk)
-        return self
-    }
-
-    ///
-    /// Adds an event/transition pair to the last added state
-    ///
-    public func on(_ event: EventType, transition: @escaping TransitionCallback) -> Self {
-        self.structure = self.structure.on(event, transition: transition)
-        return self
-    }
-
-    ///
-    /// Defines the default start state
-    ///
-    public func initial(_ state: StateType) -> Self {
-        self.initialState = state
-        return self
-    }
-
-    //------------------------------------------------------------------------------------------------------------------
-    //  MARK:   -   Action !
-
-    ///
-    /// Sets the FSM in working order.
-    ///
-    /// The initial state is entered.
-    ///
-    public func activate() {
-        self.currentState   = self.initialState
-        self.structure.enter(state: self.currentState)
-    }
-    
-    ///
-    /// Unsets the FSM
-    ///
-    public func deactivate() {
-        if let currentState = self.currentState {
-            self.structure.leave(state: currentState)
-            self.currentState  = nil
-        }
-    }
-    
-    ///
-    /// The method to call regularly to perform the update of the current state
-    ///
-    public func update(time:    TimeInterval) {
-        if let currentState = self.currentState {
-            self.structure.update(state: currentState, time: time)
-        }
-    }
-    
-    ///
-    /// Executes the transition when an event occurs and we are in a specified state
-    ///
-    /// Returns the next state, or the current state if the event isn't an event of the state.
-    ///
-    /// The willLeave method of the state is executed (if any).
-    /// The transition is executed
-    /// The didEnter method of the next state is executed (if any).
-    ///
-    public func process(event: EventType) {
-        if let currentState = self.currentState {
-            self.currentState   = self.structure.at(state:    currentState,
-                                                    reactTo:  event)
-        }
     }
 }
