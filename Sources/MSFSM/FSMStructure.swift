@@ -1,5 +1,5 @@
 //
-//  MSFSM.swift
+//  FSMStructure.swift
 //  MSFSM
 //
 //  Created by Stef MILLET on 26/02/3033.
@@ -13,44 +13,16 @@ import Foundation   //  TimeInterval
 //----------------------------------------------------------------------------------------------------------------------
 //  MARK:   -
 
-///
-/// The protocol for states
-///
-public protocol FSMState: Hashable {}
-
-
-
-///
-/// The protocol for events
-///
-public protocol FSMEvent: Hashable {}
-
 
 
 ///
 /// A class that defines a Finite State Machine structure that is easy to build
 ///
-public class FSMStructure<StateType: FSMState, InfoType, EventType: FSMEvent> {
+public class FSMStructure<StateBinderType: StateBinder, InfoType, EventType: FSMEvent>: BuildableFSM {
 
     //------------------------------------------------------------------------------------------------------------------
     //  MARK:   -   Types
 
-    /// State enter and leave callback
-    public typealias StateEnterOrLeaveCallback  = ((InfoType) -> ())
-
-    /// State update callback
-    public typealias StateUpdateCallback        = ((TimeInterval, InfoType) -> EventType?)
-
-    ///
-    /// A transition callback shall return the next state
-    ///
-    public typealias TransitionCallback = ((EventType, InfoType) -> StateType)
-    
-    ///
-    /// An executon callback processes an event without changing the state
-    ///
-    public typealias ExecutionCallback  = ((EventType, InfoType) -> ())
-    
     ///
     /// A type that defines a state of the machine
     ///
@@ -59,11 +31,11 @@ public class FSMStructure<StateType: FSMState, InfoType, EventType: FSMEvent> {
         public let state:   StateType
 
         /// State entrance callback
-        public var didEnterClbk:   StateEnterOrLeaveCallback?
+        public var didEnterClbk:   StateEnterOrLeaveCallback<StateBinderType,InfoType>?
         /// State update callback
-        public var updateClbk:     StateUpdateCallback?
+        public var updateClbk:     StateUpdateCallback<StateBinderType,InfoType,EventType>?
         /// State leave callback
-        public var willLeaveClbk:  StateEnterOrLeaveCallback?
+        public var willLeaveClbk:  StateEnterOrLeaveCallback<StateBinderType,InfoType>?
         
         public init(state: StateType) {
             self.state   = state
@@ -72,16 +44,19 @@ public class FSMStructure<StateType: FSMState, InfoType, EventType: FSMEvent> {
     
     /// The type for a transition or execution callback
     private enum EventCallback {
-        case transition(TransitionCallback)
-        case execution(ExecutionCallback)
+        case transition(TransitionCallback<StateBinderType,InfoType,EventType>)
+        case execution(ExecutionCallback<StateBinderType,InfoType,EventType>)
     }
 
     //------------------------------------------------------------------------------------------------------------------
     //  MARK:   -   Properties
     
     /// The table of events per state
-    private var eventTransitionTable    = [StateType:(stateDef: StateDefinition,
-                                                      events:   [EventType:EventCallback])]()
+    private var eventTransitionTable        = [StateType:(stateDef: StateDefinition,
+                                                          events:   [EventType:EventCallback])]()
+    
+    /// The entry state of the FSM
+    public private(set) var initialState:   StateType!
     
     //------------------------------------------------------------------------------------------------------------------
     //  MARK:   -   Init
@@ -94,10 +69,12 @@ public class FSMStructure<StateType: FSMState, InfoType, EventType: FSMEvent> {
     /// The last added state
     private var lastAddedStateDef: StateDefinition? = nil
 
-    ///
-    /// Adds a state to the finite state machine
-    ///
     public func state(_ state: StateType) -> Self {
+        
+        //  Make sure the state doesn't already exists
+        guard self.eventTransitionTable[state] == nil else {
+            fatalError("FSMStructure Error: using .state with an already defined state.")
+        }
         
         //  Create the state
         let stateDef    = StateDefinition(state: state)
@@ -112,14 +89,22 @@ public class FSMStructure<StateType: FSMState, InfoType, EventType: FSMEvent> {
         return self
     }
     
-    ///
-    /// Modifies the didEnter callback of the last added state
-    ///
-    public func didEnter(_ clbk: @escaping StateEnterOrLeaveCallback) -> Self {
+    public func initial(_ state: StateType) -> Self {
+
+        //  Make sure the there is no initial state already
+        guard self.initialState == nil else {
+            fatalError("FSMStructure Error: using .initial with an already defined initial state.")
+        }
+
+        self.initialState = state
+        return self.state(state)
+    }
+
+    public func didEnter(_ clbk: @escaping StateEnterOrLeaveCallback<StateBinderType,InfoType>) -> Self {
 
         //  We must have a last added state in order to use this builder function
         guard self.lastAddedStateDef != nil else {
-            fatalError("FSM Error: using .didEnter, but no last added state.")
+            fatalError("FSMStructure Error: using .didEnter, but no last added state.")
         }
         
         self.lastAddedStateDef!.didEnterClbk = clbk
@@ -127,14 +112,11 @@ public class FSMStructure<StateType: FSMState, InfoType, EventType: FSMEvent> {
         return self
     }
 
-    ///
-    /// Modifies the update callback of the last added state
-    ///
-    public func update(_ clbk: @escaping StateUpdateCallback) -> Self {
+    public func update(_ clbk: @escaping StateUpdateCallback<StateBinderType,InfoType,EventType>) -> Self {
 
         //  We must have a last added state in order to use this builder function
         guard self.lastAddedStateDef != nil else {
-            fatalError("FSM Error: using .update, but no last added state.")
+            fatalError("FSMStructure Error: using .update, but no last added state.")
         }
         
         self.lastAddedStateDef!.updateClbk = clbk
@@ -142,14 +124,11 @@ public class FSMStructure<StateType: FSMState, InfoType, EventType: FSMEvent> {
         return self
     }
 
-    ///
-    /// Modifies the willLeave callback of the last added state
-    ///
-    public func willLeave(_ clbk: @escaping StateEnterOrLeaveCallback) -> Self {
+    public func willLeave(_ clbk: @escaping StateEnterOrLeaveCallback<StateBinderType,InfoType>) -> Self {
 
         //  We must have a last added state in order to use this builder function
         guard self.lastAddedStateDef != nil else {
-            fatalError("FSM Error: using .willLeave, but no last added state.")
+            fatalError("FSMStructure Error: using .willLeave, but no last added state.")
         }
         
         self.lastAddedStateDef!.willLeaveClbk = clbk
@@ -157,14 +136,12 @@ public class FSMStructure<StateType: FSMState, InfoType, EventType: FSMEvent> {
         return self
     }
 
-    ///
-    /// Adds an event/transition pair to the last added state
-    ///
-    public func on(_ event: EventType, transition: @escaping TransitionCallback) -> Self {
+    public func on(_ event:     EventType,
+                   transition:  @escaping TransitionCallback<StateBinderType, InfoType, EventType>) -> Self {
         
         //  We must have a last added state in order to use this builder function
         guard self.lastAddedStateDef != nil else {
-            fatalError("FSM Error: using .on, but no last added state.")
+            fatalError("FSMStructure Error: using .on, but no last added state.")
         }
         
         //  Add the event/transition to the table
@@ -179,14 +156,12 @@ public class FSMStructure<StateType: FSMState, InfoType, EventType: FSMEvent> {
         return self
     }
     
-    ///
-    /// Adds an event/execution pair to the last added state
-    ///
-    public func exec(_ event: EventType, execution: @escaping ExecutionCallback) -> Self {
+    public func exec(_ event:   EventType,
+                     execution: @escaping ExecutionCallback<StateBinderType, InfoType,EventType>) -> Self {
         
         //  We must have a last added state in order to use this builder function
         guard self.lastAddedStateDef != nil else {
-            fatalError("FSM Error: using .exec, but no last added state.")
+            fatalError("FSMStructure Error: using .exec, but no last added state.")
         }
         
         //  Add the event/transition to the table
@@ -207,53 +182,57 @@ public class FSMStructure<StateType: FSMState, InfoType, EventType: FSMEvent> {
     ///
     /// Calls the entrance callback of a state
     ///
-    public func enter(state:    StateType,
+    public func enter(binder:   StateBinderType,
                       info:     InfoType) {
-        self.eventTransitionTable[state]!.stateDef.didEnterClbk?(info)
+        self.eventTransitionTable[binder.state!]!.stateDef.didEnterClbk?(binder, info)
     }
     
     ///
-    /// The method to call regularly to perfor the current update of the state
+    /// The method to call regularly to perform the current update of the state
     ///
-    public func update(state:   StateType,
-                       time:    TimeInterval,
+    /// It returns an event that can be generated by the callback. The event is not processed
+    ///
+    public func update(time:    TimeInterval,
+                       binder:  StateBinderType,
                        info:    InfoType) -> EventType? {
-        return self.eventTransitionTable[state]!.stateDef.updateClbk?(time, info)
+        return self.eventTransitionTable[binder.state!]!.stateDef.updateClbk?(time, binder, info)
     }
     
     ///
     /// Calls the exit callback of a state
     ///
-    public func leave(state:    StateType,
+    public func leave(binder:   StateBinderType,
                       info:     InfoType) {
-        self.eventTransitionTable[state]!.stateDef.willLeaveClbk?(info)
+        self.eventTransitionTable[binder.state!]!.stateDef.willLeaveClbk?(binder, info)
     }
 
     
     ///
-    /// Executes the transition when an event occurs and we are in a specified state
+    /// Executes the transition/execution callback when an event occurs inside the specified state
     ///
-    /// Returns the next state, or the current state if the event isn't an event of the state.
+    /// This method will:
+    /// - Do nothing if the event is not an acceptable event of the current state
+    /// - If, in the current state, the event triggers a transition:
+    ///     - call the willLeave method of the current state
+    ///     - call the transition callback
+    ///     - change the state using the state binder
+    ///     - call the didEnter method of the new state
+    /// - If, in the urrent state, the event triggers an execution callback
+    ///     - just execute this callback
     ///
-    /// The willLeave method of the state is executed (if any).
-    /// The transition is executed
-    /// The didEnter method of the next state is executed (if any).
-    ///
-    public func reactTo(state:  StateType,
-                        event:  EventType,
-                        info:   InfoType) -> StateType {
-        if let callback = self.eventTransitionTable[state]?.events[event] {
-            
+    public func reactTo(event:  EventType,
+                        binder: StateBinderType,
+                        info:   InfoType) {
+        if let callback = self.eventTransitionTable[binder.state!]?.events[event] {
             switch callback {
             case .transition(let transition):
-                self.leave(state: state, info: info)
-                let nextState = transition(event, info)
-                self.enter(state: nextState, info: info)
-                return nextState
+                self.leave(binder: binder, info: info)
+                let nextState   = transition(event, binder, info)
+                binder.state    = nextState
+                self.enter(binder: binder, info: info)
             case .execution(let execution):
-                execution(event, info)
+                execution(event, binder, info)
             }
         }
-        return state
     }
 }
