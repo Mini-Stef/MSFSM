@@ -18,7 +18,7 @@ import Foundation   //  TimeInterval
 ///
 /// A class that defines a Finite State Machine structure that is easy to build
 ///
-public class FSMStructure<StateBinderType: StateBinder, InfoType, EventType: FSMEvent>: BuildableFSM {
+public class FSMStructure<StateType: FSMState, InfoType, EventType: FSMEvent>: BuildableFSM {
 
     //------------------------------------------------------------------------------------------------------------------
     //  MARK:   -   Types
@@ -31,11 +31,11 @@ public class FSMStructure<StateBinderType: StateBinder, InfoType, EventType: FSM
         public let state:   StateType
 
         /// State entrance callback
-        public var didEnterClbk:   StateEnterOrLeaveCallback<StateBinderType,InfoType>?
+        public var didEnterClbk:   StateEnterOrLeaveCallback<StateType,InfoType>?
         /// State update callback
-        public var updateClbk:     StateUpdateCallback<StateBinderType,InfoType,EventType>?
+        public var updateClbk:     StateUpdateCallback<StateType,InfoType,EventType>?
         /// State leave callback
-        public var willLeaveClbk:  StateEnterOrLeaveCallback<StateBinderType,InfoType>?
+        public var willLeaveClbk:  StateEnterOrLeaveCallback<StateType,InfoType>?
         
         public init(state: StateType) {
             self.state   = state
@@ -44,8 +44,8 @@ public class FSMStructure<StateBinderType: StateBinder, InfoType, EventType: FSM
     
     /// The type for a transition or execution callback
     private enum EventCallback {
-        case transition(TransitionCallback<StateBinderType,InfoType,EventType>)
-        case execution(ExecutionCallback<StateBinderType,InfoType,EventType>)
+        case transition(TransitionCallback<StateType,InfoType,EventType>)
+        case execution(ExecutionCallback<StateType,InfoType,EventType>)
     }
 
     //------------------------------------------------------------------------------------------------------------------
@@ -57,7 +57,10 @@ public class FSMStructure<StateBinderType: StateBinder, InfoType, EventType: FSM
     
     /// The entry state of the FSM
     public private(set) var initialState:   StateType!
-    
+
+    /// Tells whether we have a memory
+    public private(set) var hasMemory:      Bool    = false
+
     //------------------------------------------------------------------------------------------------------------------
     //  MARK:   -   Init
 
@@ -100,7 +103,12 @@ public class FSMStructure<StateBinderType: StateBinder, InfoType, EventType: FSM
         return self.state(state)
     }
 
-    public func didEnter(_ clbk: @escaping StateEnterOrLeaveCallback<StateBinderType,InfoType>) -> Self {
+    public func memory(_ state: StateType) -> Self {
+        self.hasMemory  = true
+        return self.initial(state)
+    }
+
+    public func didEnter(_ clbk: @escaping StateEnterOrLeaveCallback<StateType,InfoType>) -> Self {
 
         //  We must have a last added state in order to use this builder function
         guard self.lastAddedStateDef != nil else {
@@ -112,7 +120,7 @@ public class FSMStructure<StateBinderType: StateBinder, InfoType, EventType: FSM
         return self
     }
 
-    public func update(_ clbk: @escaping StateUpdateCallback<StateBinderType,InfoType,EventType>) -> Self {
+    public func update(_ clbk: @escaping StateUpdateCallback<StateType,InfoType,EventType>) -> Self {
 
         //  We must have a last added state in order to use this builder function
         guard self.lastAddedStateDef != nil else {
@@ -124,7 +132,7 @@ public class FSMStructure<StateBinderType: StateBinder, InfoType, EventType: FSM
         return self
     }
 
-    public func willLeave(_ clbk: @escaping StateEnterOrLeaveCallback<StateBinderType,InfoType>) -> Self {
+    public func willLeave(_ clbk: @escaping StateEnterOrLeaveCallback<StateType,InfoType>) -> Self {
 
         //  We must have a last added state in order to use this builder function
         guard self.lastAddedStateDef != nil else {
@@ -137,7 +145,7 @@ public class FSMStructure<StateBinderType: StateBinder, InfoType, EventType: FSM
     }
 
     public func on(_ event:     EventType,
-                   transition:  @escaping TransitionCallback<StateBinderType, InfoType, EventType>) -> Self {
+                   transition:  @escaping TransitionCallback<StateType, InfoType, EventType>) -> Self {
         
         //  We must have a last added state in order to use this builder function
         guard self.lastAddedStateDef != nil else {
@@ -157,7 +165,7 @@ public class FSMStructure<StateBinderType: StateBinder, InfoType, EventType: FSM
     }
     
     public func exec(_ event:   EventType,
-                     execution: @escaping ExecutionCallback<StateBinderType, InfoType,EventType>) -> Self {
+                     execution: @escaping ExecutionCallback<StateType, InfoType,EventType>) -> Self {
         
         //  We must have a last added state in order to use this builder function
         guard self.lastAddedStateDef != nil else {

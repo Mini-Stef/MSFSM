@@ -1,5 +1,5 @@
 //
-//  EventWithValue.swift
+//  2 - EventWithValue.swift
 //  
 //
 //  Created by Stef MILLET on 02/03/2022.
@@ -12,18 +12,17 @@ import XCTest
 
 
 
-protocol HasHealth: AnyObject {
+protocol HealthHolder: AnyObject {
     var health: Int { get set }
 }
 
-class EventWithValue: XCTestCase {
+class EventWithValueTests: XCTestCase {
 
 
     //  Define the states of the FSM
     enum State: FSMState {
         case alive, dead
     }
-
 
     //  Define an event that will carry a value. Based on this value, and on the character's health, we will end
     //  up in one state or another
@@ -53,54 +52,51 @@ class EventWithValue: XCTestCase {
         static let heal = Event(label: .heal,   value: 0)   //  we don't care about the value
     }
 
-    //  Define a character that has a health
-    class Character: HasHealth, StateBinder {
-        var state: State?
-        var health: Int  = 100
-    }
-
-
-    static let fsmStructure = FSMStructure<Character, Void, Event>()
+    static let fsmStructure = FSMStructure<State, HealthHolder, Event>()
         .initial(.alive)
-            .on(.hit)        { event,character,_ in
-                character.health -= event.value
-                if character.health <= 0 {
+            .on(.hit)        { event,_,healthHolder in
+                healthHolder.health -= event.value
+                if healthHolder.health <= 0 {
                     return .dead
                 }
                 return .alive
             }
-            .on(.heal)          { event,character,_ in
-                character.health += event.value
+            .on(.heal)          { event,_,healthHolder in
+                healthHolder.health += event.value
                 return .alive
             }
         .state(.dead)
 
-    
+    //  Define a character that has a health
+    class Character: HealthHolder, StateBinder {
+        var state: State?
+        var health: Int  = 100
+    }
     
     
     func testEventWithValueFSM() throws {
         
         let character = Character()
         
-        let fsm = BindableFSM<Character, Void, Event>(structure: EventWithValue.fsmStructure)
+        let fsm = BindableFSM<State, HealthHolder, Event>(structure: EventWithValueTests.fsmStructure)
         
         //  Test initial state
         XCTAssert(character.state == nil)
-        fsm.activate(binder: character)
+        fsm.activate(binder: AnyStateBinder(character), info: character)
         XCTAssert(character.state == .alive)
 
         //  Test first hit
-        fsm.process(event: Event(label: .hit, value: 70), binder: character)
+        fsm.process(event: Event(label: .hit, value: 70), binder: AnyStateBinder(character), info: character)
         XCTAssert(character.state == .alive)
         XCTAssert(character.health == 30)
 
         //  Test heal
-        fsm.process(event: Event(label: .heal, value: 10), binder: character)
+        fsm.process(event: Event(label: .heal, value: 10), binder: AnyStateBinder(character), info: character)
         XCTAssert(character.state == .alive)
         XCTAssert(character.health == 40)
 
         //  Kill !
-        fsm.process(event: Event(label: .hit, value: 70), binder: character)
+        fsm.process(event: Event(label: .hit, value: 70), binder: AnyStateBinder(character), info: character)
         XCTAssert(character.state == .dead)
     }
 

@@ -1,5 +1,5 @@
 //
-//  SimpleFSMTests.swift
+//  0 - SimpleFSMTests.swift
 //  
 //
 //  Created by Stef MILLET on 01/03/2022.
@@ -12,6 +12,12 @@ import XCTest
 
 class SimpleFSMTests: XCTestCase {
 
+    //
+    //  This is testing 90% of the package, just with:
+    //  1   -   A very simple FSM test
+    //  2   -   Testing the state callbakcs
+    //
+    
     enum State: Int, FSMState {
         case healthy, wounded, dead
     }
@@ -22,6 +28,9 @@ class SimpleFSMTests: XCTestCase {
 
     func testVerySimpleFSM() throws {
         
+        //
+        //  Demonstration of the declarative syntax
+        //
         let fsm = SimplestFSM<State, Event>()
             .initial(.healthy)
                 .on(.hit)           { _,_,_ in return .wounded }

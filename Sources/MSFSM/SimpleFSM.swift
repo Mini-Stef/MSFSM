@@ -18,17 +18,20 @@ import Foundation   //  TimeInterval
 ///
 /// This class contains its own state, and can't support Hierarchical FSM.
 ///
-public class SimpleFSM<StateType: FSMState, InfoType, EventType: FSMEvent>: BuildableFSM, StateBinder {
+public class SimpleFSM<StateType: FSMState, InfoType, EventType: FSMEvent>: BuildableFSM, StateBinderWithMemory {
 
     //------------------------------------------------------------------------------------------------------------------
     //  MARK:   -   Properties
 
     /// The structure of the FSM
-    private             var structure:  FSMStructure<SimpleFSM<StateType, InfoType, EventType>,InfoType,EventType>
-    private             var fsm:        BindableFSM<SimpleFSM<StateType, InfoType, EventType>, InfoType, EventType>
+    private             var structure:  FSMStructure<StateType ,InfoType, EventType>
+    private             var fsm:        BindableFSM<StateType, InfoType, EventType>
     
     /// The current FSM state
     public              var state:  StateType?
+
+    /// The state memory if needed
+    public              var memory: StateType?
 
     //------------------------------------------------------------------------------------------------------------------
     //  MARK:   -   Init
@@ -37,7 +40,7 @@ public class SimpleFSM<StateType: FSMState, InfoType, EventType: FSMEvent>: Buil
     /// Use this init when you want to define the structure using the BuildableFSM methods
     ///
     public convenience init() {
-        self.init(structure: FSMStructure<SimpleFSM<StateType, InfoType, EventType>, InfoType, EventType>())
+        self.init(structure: FSMStructure<StateType, InfoType, EventType>())
     }
 
     ///
@@ -45,7 +48,7 @@ public class SimpleFSM<StateType: FSMState, InfoType, EventType: FSMEvent>: Buil
     ///
     /// This might be usefull when you want several instance of the same FSM, each one with their token and info.
     ///
-    public init(structure:  FSMStructure<SimpleFSM<StateType, InfoType, EventType>, InfoType, EventType>) {
+    public init(structure:  FSMStructure<StateType, InfoType, EventType>) {
         self.structure  = structure
         self.fsm        = BindableFSM(structure: structure)
     }
@@ -72,7 +75,7 @@ public class SimpleFSM<StateType: FSMState, InfoType, EventType: FSMEvent>: Buil
     ///
     /// Modifies the didEnter callback of the last added state
     ///
-    public func didEnter(_ clbk: @escaping StateEnterOrLeaveCallback<SimpleFSM<StateType, InfoType, EventType>, InfoType>) -> Self {
+    public func didEnter(_ clbk: @escaping StateEnterOrLeaveCallback<StateType, InfoType>) -> Self {
         self.structure = self.structure.didEnter(clbk)
         return self
     }
@@ -80,7 +83,7 @@ public class SimpleFSM<StateType: FSMState, InfoType, EventType: FSMEvent>: Buil
     ///
     /// Modifies the update callback of the last added state
     ///
-    public func update(_ clbk: @escaping StateUpdateCallback<SimpleFSM<StateType, InfoType, EventType>, InfoType, EventType>) -> Self {
+    public func update(_ clbk: @escaping StateUpdateCallback<StateType, InfoType, EventType>) -> Self {
         self.structure = self.structure.update(clbk)
         return self
     }
@@ -88,7 +91,7 @@ public class SimpleFSM<StateType: FSMState, InfoType, EventType: FSMEvent>: Buil
     ///
     /// Modifies the willLeave callback of the last added state
     ///
-    public func willLeave(_ clbk: @escaping StateEnterOrLeaveCallback<SimpleFSM<StateType, InfoType, EventType>, InfoType>) -> Self {
+    public func willLeave(_ clbk: @escaping StateEnterOrLeaveCallback<StateType, InfoType>) -> Self {
         self.structure = self.structure.willLeave(clbk)
         return self
     }
@@ -97,7 +100,7 @@ public class SimpleFSM<StateType: FSMState, InfoType, EventType: FSMEvent>: Buil
     /// Adds an event/transition pair to the last added state
     ///
     public func on(_ event:     EventType,
-                   transition:  @escaping TransitionCallback<SimpleFSM<StateType, InfoType, EventType>, InfoType, EventType>) -> Self {
+                   transition:  @escaping TransitionCallback<StateType, InfoType, EventType>) -> Self {
         self.structure = self.structure.on(event, transition: transition)
         return self
     }
@@ -106,7 +109,7 @@ public class SimpleFSM<StateType: FSMState, InfoType, EventType: FSMEvent>: Buil
     /// Adds an event/execution pair to the last added state
     ///
     public func exec(_ event:   EventType,
-                     execution: @escaping ExecutionCallback<StateBinderType, InfoType,EventType>) -> Self {
+                     execution: @escaping ExecutionCallback<StateType, InfoType,EventType>) -> Self {
         self.structure = self.structure.exec(event, execution: execution)
         return self
     }
@@ -116,21 +119,21 @@ public class SimpleFSM<StateType: FSMState, InfoType, EventType: FSMEvent>: Buil
     //  MARK:   -   Action !
 
     public func activate(info:     InfoType) {
-        self.fsm.activate(binder: self, info: info)
+        self.fsm.activate(binder: AnyStateBinder(self), info: info)
     }
     
     public func deactivate(info:     InfoType) {
-        self.fsm.deactivate(binder: self, info: info)
+        self.fsm.deactivate(binder: AnyStateBinder(self), info: info)
     }
     
     public func update(time:   TimeInterval,
                        info:   InfoType) -> EventType? {
-        self.fsm.update(time: time, binder: self, info: info)
+        self.fsm.update(time: time, binder: AnyStateBinder(self), info: info)
     }
     
     public func process(event:     EventType,
                         info:      InfoType) {
-        self.fsm.process(event: event, binder: self, info: info)
+        self.fsm.process(event: event, binder: AnyStateBinder(self), info: info)
     }
 }
 
@@ -141,19 +144,19 @@ public class SimpleFSM<StateType: FSMState, InfoType, EventType: FSMEvent>: Buil
 
 public extension SimpleFSM where InfoType == Void {
     func activate() {
-        self.fsm.activate(binder: self, info: (()))
+        self.fsm.activate(binder: AnyStateBinder(self), info: (()))
     }
     
     func deactivate() {
-        self.fsm.deactivate(binder: self, info: (()))
+        self.fsm.deactivate(binder: AnyStateBinder(self), info: (()))
     }
     
     func update(time:   TimeInterval) -> EventType? {
-        self.fsm.update(time: time, binder: self, info: (()))
+        self.fsm.update(time: time, binder: AnyStateBinder(self), info: (()))
     }
     
     func process(event:     EventType) {
-        self.fsm.process(event: event, binder: self, info: (()))
+        self.fsm.process(event: event, binder: AnyStateBinder(self), info: (()))
     }
 }
 

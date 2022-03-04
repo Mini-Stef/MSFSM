@@ -52,7 +52,7 @@ The ``SimplestFSM`` class holds its own `state` property, so it comes as ready-t
 
 ```
 
-let healthFSMStructure  = FSMStructure<MyClass, Void, Event>()
+let healthFSMStructure  = FSMStructure<State, Void, Event>()
     .initial(.healthy)
         .on(.hit)           { _,_,_ in return .wounded }
         .on(.severeHit)     { _,_,_ in return .dead }
@@ -84,46 +84,22 @@ Why is that so cool ? Because, suddenly, by defining one and only one FSM struct
 
 Let's go further.
 
-What if you want to bind the FSM state to a property named differently than `state`, or what if you want to bind two different properties to two differents FSM structures ? Yes, the ``StateBinder`` helps you there too !
-
-For example, let's say, you have something like this:
+What if you want to bind the FSM state to a property named differently than `state`, or what if you want to bind two different properties to two differents FSM structures ? The ``AnyStateBinder`` is there to help.
 
 ```
-protocol HasHealthStatus {
-    var healthStatus: State? { get set }
-}
-
-class HumanWarrior: HasHealthStatus {
-    var healthStatus: State?
-}
-```
-
-And you want that the FSM influences the healthStatus property, instead of a `state`property. What you could do is simply:
-
-```
-class HealthStatusBinder: StateBinder {
-    weak var bindedHealthStatusHolder: HasHealthStatus!
-    
-    var state: State? {
-        get { bindedHealthStatusHolder.healthStatus }
-        set { bindedHealthStatusHolder.healthStatus = newValue }
-    }
-    
-    init(bindedHealthStatusHolder: HasHealthStatus) {
-        self.bindedHealthStatusHolder = bindedHealthStatusHolder
-    }
-}
-
-class HumanWarrior: HasHealthStatus {
+class MyClass {
     
     var healthStatus: State?
-    var healthStatusBinder: HealthStatusBinder!
-
-    let fsm:    BindableFSM<HealthStatusBinder, Void, Event>
+    
+    //  Add a state binder that takes care about indirection between FSM State and 'healthStatus' instead of 'state'
+    var healthStatusBinder: AnyStateBinder<State>!
+    
+    let fsm:    BindableFSM<State, Void, Event>
     
     init() {
         self.fsm = BindableFSM(structure: healthFSMStructure)
-        self.healthStatusBinder = HealthStatusBinder(bindedHealthStatusHolder: self)
+        self.healthStatusBinder  = AnyStateBinder(getClosure:   { self.healthStatus },
+                                                  setClosure:   { newValue in self.healthStatus = newValue })
     }
 }
 ```
@@ -176,29 +152,30 @@ struct Event: FSMEvent {
     static let heal = Event(label: .heal,   value: 0)   //  we don't care about the value
 }
 
-//  Define a character that has a health
-class Character: HasHealth, StateBinder {
-    var state: State?
-    var health: Int  = 100
+//  Define a protocol for the class that will be holding the health property. An instance of that class will be
+//  provided as parameter of transitions so the transition can modify the health value
+protocol HealthHolder: AnyObject {
+    var health: Int { get set }
 }
 
-let fsmStructure = FSMStructure<Character, Void, Event>()
+
+let fsmStructure = FSMStructure<State, HealthHolder, Event>()
     .initial(.alive)
-        .on(.hit)        { event,character,_ in
-            character.health -= event.value
-            if character.health <= 0 {
+        .on(.hit)        { event,_,healthHolder in
+            healthHolder.health -= event.value
+            if healthHolder.health <= 0 {
                 return .dead
             }
             return .alive
         }
-        .on(.heal)          { event,character,_ in
-            character.health += event.value
+        .on(.heal)          { event,_,healthHolder in
+            healthHolder.health += event.value
             return .alive
         }
     .state(.dead)
 ```
 
-See how we have defined a transition that can end up in one state or another, depending on the value of the event ?
+See how we have defined a transition that can end up in two different states (.alive and .dead), depending on the value contained of the event ?
 
 We will come back to the power of generics when we talk about hierarchical FSM later.
 
@@ -216,6 +193,38 @@ You declare an execution callback using `.exec` instead of `.on`. Both take the 
 
 See ``TransitionCallback`` and ``ExecutionCallback``.
 
+Here is an example of FSM declaration with callbacks. Still very clean and readable.
+
+```
+let fsm = SimpleFSM<State, Info, Event>()
+    .initial(.healthy)
+        .willLeave          { _,info in info.hasLeftHealthy = true }
+        .on(.hit)           { _,_,_ in return .wounded }
+        .on(.severeHit)     { _,_,_ in return .dead }
+    .state(.wounded)
+        .update             { _,_,info in info.hasUpdatedWounded = true ; return nil }
+        .on(.hit)           { _,_,_ in return .dead }
+        .on(.severeHit)     { _,_,_ in return .dead }
+        .on(.heal)          { _,_,_ in return .healthy }
+    .state(.dead)
+        .didEnter           { _,info in info.hasEnteredDead = true }
+```
+
+
+### How to use
+
+So far, we have seen how to declare FSM structures, and FSM that hold their own state, or can bind to a state property (whatever its name) held by a class. But how do we use those FSM ? This is defined by the ``FSM`` protocol.
+
+There are four methods to use an FSM:
+
+* ``FSM/activate(binder:info:)`` must be called once before any other method. It sets the current state of the FSM to the initial FSM tate and calls its `didEnter` callback. Before a call to `activate` the state is supposed to be `nil` (that's why states are optionals). Not calling `activate` on an FSM before any other method is a programmer error. Calling it twice without calling `deactive` in between results in an undefined behaviour.
+* ``FSM/deactivate(binder:info:)`` does the opposite of `activate`. It calls the `willLeave` callback of the current state before deactivating the FSM. After a deactivation, the state is `nil`.
+* ``FSM/process(event:binder:info:)`` is to be called when an event occurs and needs to be processed by the FSM. This method will take care of changing the state if needed, calling the `willLeave` and `didEnter` callbacks as necessary.
+* ``FSM/update(time:binder:info:)`` is to be called whenever needed to execution actions needed while staying in a state. It calls the `update` state callback. It can return an event that can be processed later on.
+
+Note that all those callback receives the state binder as parameter, so that they can retrieve the current state of the FSM if needed. Changing the current state in the callbacks can results in undefined behaviour.
+
+They also receive an `info` parameter that can hold any information needed by the callbacks. In our above example, the info was holding the health value that was influenced by the hit or heal value in the event.
 
 
 ### Hierarchical FSM
@@ -226,7 +235,161 @@ Let's do this:
 
 ![FSM3](FSM3.png)
 
+```
+//  First, define the structure of the sub-FSM - very simple
+enum SleepingState: FSMState {
+    case awaken, asleep
+}
 
+enum SleepingEvent: FSMEvent {
+    case awake, goToSleep
+}
+
+let sleepingFSMStructure = FSMStructure<SleepingState, Void, SleepingEvent>()
+    .initial(.awaken)
+        .on(.goToSleep) { _,_,_ in return .asleep }
+    .state(.asleep)
+        .on(.awake)     { _,_,_ in return .awaken }
+
+
+
+//  Then define, the father FSM
+
+
+//  Let's define a state with an enum. One of the case will have an associated value that is a BindableFSM
+//  with the sleepingFSMStructure structure.
+//  As explained above, we make sure that only the static part is taken into account for hashin and comparison
+enum HealthState: FSMState {
+    case dead
+    case alive(BindableFSM<SleepingState, Void, SleepingEvent>)
+
+    static let alive: HealthState = .alive(BindableFSM(structure: sleepingFSMStructure))
+
+    //  Make sure that only the static part is taken into account for hashing and comparison
+    //  i.e. remove the value from == and hash
+    static func == (lhs: HealthState, rhs: HealthState) -> Bool {
+        switch (lhs, rhs) {
+        case    (.dead, .dead),
+                (.alive, .alive):
+            return true
+        default: return false
+        }
+    }
+
+    func hash(into hasher: inout Hasher) {
+        switch self {
+        case .dead:     hasher.combine(0)
+        case .alive:    hasher.combine(1)
+        }
+    }
+}
+
+//  We do the same with an event that is holding information (for the multi-ending-state transition)
+//  See above if you missed that
+enum HealthEvent: FSMEvent {
+    case heal(Int), hit(Int)
+    case awake, goToSleep
+
+    static let heal: HealthEvent   = .heal(0)
+    static let hit: HealthEvent    = .hit(0)
+
+    //  Make sure that only the static part is taken into account for hashing and comparison
+    //  i.e. remove the value from == and hash
+    static func == (lhs: HealthEvent, rhs: HealthEvent) -> Bool {
+        switch (lhs, rhs) {
+        case    (.heal, .heal),
+                (.hit, .hit),
+                (.awake, .awake),
+                (.goToSleep, .goToSleep):
+            return true
+        default: return false
+        }
+    }
+
+    func hash(into hasher: inout Hasher) {
+        switch self {
+        case .heal: hasher.combine(0)
+        case .hit:  hasher.combine(1)
+        case .awake:  hasher.combine(2)
+        case .goToSleep:  hasher.combine(3)
+        }
+    }
+}
+
+
+//  The FSM will have to be binded to two states, one for each level of the FSM. The first level state
+//  (alive/dead) will be provided by the binder. We'll bind the second state via the info parameters
+//  Let's define a protocol for that info parameter
+
+protocol SleepStateBinderProvider {
+    var sleepStatusBinder: AnyStateBinder<SleepingState>! { get }
+}
+
+
+//  The FSM structure will then be defined as follows.
+//  We use the states callbacks. When entering/leaving the alive state, we activate/deactivate the subFSM
+//  And we don't forget to forward sleep/awake events to teh sub FSM in our execution callacks on alive state
+let healthFSMStructure = FSMStructure<HealthState, SleepStateBinderProvider & HealthHolder, HealthEvent>()
+    .initial(.alive)
+        .didEnter       { binder,info in
+            let aliveState  = binder.state!
+            if case let .alive(subFsm) = aliveState {
+                subFsm.activate(binder: info.sleepStatusBinder!)
+            }
+        }
+        .willLeave      { binder,info in
+            let aliveState  = binder.state!
+            if case let .alive(subFsm) = aliveState {
+                subFsm.deactivate(binder: info.sleepStatusBinder!)
+            }
+        }
+        .on(.hit)       { event,_,healthHolder in
+            if case let .hit(hitValue) = event {
+                healthHolder.health -= hitValue
+                if healthHolder.health <= 0 {
+                    return .dead
+                }
+            }
+            return .alive
+        }
+        .exec(.heal)          { event,_,healthHolder in
+            if case let .heal(healValue) = event {
+                healthHolder.health += healValue
+            }
+        }
+        .exec(.goToSleep) { _,binder,info in
+            let aliveState  = binder.state!
+            if case let .alive(subFsm) = aliveState {
+                subFsm.process(event: .goToSleep, binder: info.sleepStatusBinder!)
+            }
+        }
+        .exec(.awake) { _,binder,info in
+            let aliveState  = binder.state!
+            if case let .alive(subFsm) = aliveState {
+                subFsm.process(event: .awake, binder: info.sleepStatusBinder!)
+            }
+        }
+    .state(.dead)
+
+
+    //  Tadaaaaaa !!!
+
+```
+
+OK, declaring the Hierarchical FSM is a bit more complex, mostly because of the `Hashable` part of states and events, but hey ! I bet this is still is pretty straightforward compared to any Hierarchical FSM you've used in the past, right ? Also, how many times are you really using HFSM ?
+
+
+You can check all the examples, as they are provided in the package Unit Tests.
+
+
+
+### The final touch
+
+Yes, but there is a little "one more thing...". In the HFSM example, if you are asleep and you get hit, then you'll end up awaken. While this might be the desired behaviour, what if we want to remain asleep ? Because the hit event starts a transition, we get out of the alive state, and in again, thus deactivating/reactivating the sleep subFSM, thus going back to its initial state.
+
+Well, that's where `memory` comes to the rescue...
+
+If, instead of using `initial`, we use `memory`, then the FSM will remember its last state when reactivated. In that case, the binder to the state must conform to ``StateBinderWithMemory``.
 
 
 ## Topics

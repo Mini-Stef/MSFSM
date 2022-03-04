@@ -37,23 +37,55 @@ public protocol StateBinder: AnyObject {
     var state:  StateType?  { get set }
 }
 
+public protocol StateBinderWithMemory: StateBinder {
+    /// Access to the state memory
+    var memory: StateType?  { get set }
+}
+
 ///
 /// A Type-erasing type for a StateBinder
 ///
-public class AnyStateBinder<StateType: FSMState>: StateBinder {
-    private let getClosure: (() -> StateType?)
-    private let setClosure: ((StateType?) -> ())
-    
+public class AnyStateBinder<StateType: FSMState>: StateBinderWithMemory {
+    private let getClosure:     (() -> StateType?)
+    private let setClosure:     ((StateType?) -> ())
+    private let getMClosure:    (() -> StateType?)?
+    private let setMClosure:    ((StateType?) -> ())?
+
     public  var state: StateType? {
         get { self.getClosure() }
         set { self.setClosure(newValue) }
     }
-    
+
+    public  var memory: StateType? {
+        get { self.getMClosure!() }
+        set { self.setMClosure!(newValue) }
+    }
+
     public init<BinderType: StateBinder>(_ erased: BinderType) where BinderType.StateType == StateType {
-        self.getClosure = { erased.state }
-        self.setClosure = { newValue in erased.state = newValue }
+        self.getClosure     = { erased.state }
+        self.setClosure     = { newValue in erased.state = newValue }
+        self.getMClosure    = nil
+        self.setMClosure    = nil
+    }
+    
+    public init<BinderType: StateBinderWithMemory>(_ erased: BinderType) where BinderType.StateType == StateType {
+        self.getClosure     = { erased.state }
+        self.setClosure     = { newValue in erased.state = newValue }
+        self.getMClosure    = { erased.memory }
+        self.setMClosure    = { newValue in erased.memory = newValue }
+    }
+    
+    public init(getClosure:     @escaping (() -> StateType?),
+                setClosure:     @escaping ((StateType?) -> ()),
+                getMClosure:    (() -> StateType?)?   = nil,
+                setMClosure:    ((StateType?) -> ())? = nil) {
+        self.getClosure     = getClosure
+        self.setClosure     = setClosure
+        self.getMClosure    = getMClosure
+        self.setMClosure    = setMClosure
     }
 }
+
 
 
 //----------------------------------------------------------------------------------------------------------------------
@@ -63,9 +95,12 @@ public class AnyStateBinder<StateType: FSMState>: StateBinder {
 /// A protocol to use an FSM
 ///
 public protocol FSM {
-    associatedtype  EventType:          FSMEvent
-    associatedtype  StateBinderType:    StateBinder
+    associatedtype  EventType:  FSMEvent
+    associatedtype  StateType:  FSMState
     associatedtype  InfoType
+    
+    /// Shortcut to the type erasing class for AnyStateBinder<StateType>
+    typealias StateBinderType   = AnyStateBinder<StateType>
     
     ///
     /// Sets the FSM in working order.
@@ -116,24 +151,27 @@ public protocol FSM {
 //  MARK:   -   FSM Structure types and protocol
 
 /// State enter and leave callback
-public typealias StateEnterOrLeaveCallback<StateBinderType: StateBinder,
-                                           InfoType>        = ((StateBinderType,InfoType) -> ())
+public typealias StateEnterOrLeaveCallback<StateType:       FSMState,
+                                           InfoType>        = ((AnyStateBinder<StateType>,InfoType) -> ())
 
 /// State update callback
-public typealias StateUpdateCallback<StateBinderType: StateBinder,
+public typealias StateUpdateCallback<StateType:             FSMState,
                                      InfoType,
-                                     EventType: FSMEvent>   = ((TimeInterval, StateBinderType, InfoType) -> EventType?)
+                                     EventType: FSMEvent>   = ((TimeInterval,
+                                                                AnyStateBinder<StateType>,
+                                                                InfoType) -> EventType?)
 
 /// A transition callback shall return the next state
-public typealias TransitionCallback<StateBinderType: StateBinder,
+public typealias TransitionCallback<StateType:              FSMState,
                                     InfoType,
-                                    EventType: FSMEvent>    = ((EventType, StateBinderType, InfoType) ->
-                                                                                            StateBinderType.StateType)
+                                    EventType: FSMEvent>    = ((EventType,
+                                                                AnyStateBinder<StateType>,
+                                                                InfoType) -> StateType)
 
 /// An executon callback processes an event without changing the state
-public typealias ExecutionCallback<StateBinderType: StateBinder,
+public typealias ExecutionCallback<StateType:               FSMState,
                                    InfoType,
-                                   EventType: FSMEvent>     = ((EventType, StateBinderType, InfoType) -> ())
+                                   EventType: FSMEvent>     = ((EventType, AnyStateBinder<StateType>, InfoType) -> ())
 
 
 
@@ -141,11 +179,12 @@ public typealias ExecutionCallback<StateBinderType: StateBinder,
 /// A protocol to build an FSM
 ///
 public protocol BuildableFSM {
-    associatedtype  StateBinderType:    StateBinder
+    associatedtype  StateType:  FSMState
     associatedtype  InfoType
-    associatedtype  EventType:          FSMEvent
+    associatedtype  EventType:  FSMEvent
     
-    typealias   StateType   = StateBinderType.StateType
+    /// Shortcut to the type erasing class for AnyStateBinder<StateType>
+    typealias StateBinderType   = AnyStateBinder<StateType>
 
     ///
     /// Adds a state to the finite state machine
@@ -160,25 +199,25 @@ public protocol BuildableFSM {
     ///
     /// Modifies the didEnter callback of the last added state
     ///
-    func didEnter(_ clbk: @escaping StateEnterOrLeaveCallback<StateBinderType,InfoType>) -> Self
+    func didEnter(_ clbk: @escaping StateEnterOrLeaveCallback<StateType, InfoType>) -> Self
 
     ///
     /// Modifies the update callback of the last added state
     ///
-    func update(_ clbk: @escaping StateUpdateCallback<StateBinderType,InfoType,EventType>) -> Self
+    func update(_ clbk: @escaping StateUpdateCallback<StateType,InfoType, EventType>) -> Self
 
     ///
     /// Modifies the willLeave callback of the last added state
     ///
-    func willLeave(_ clbk: @escaping StateEnterOrLeaveCallback<StateBinderType,InfoType>) -> Self
+    func willLeave(_ clbk: @escaping StateEnterOrLeaveCallback<StateType, InfoType>) -> Self
 
     ///
     /// Adds an event/transition pair to the last added state
     ///
-    func on(_ event: EventType, transition: @escaping TransitionCallback<StateBinderType,InfoType,EventType>) -> Self
+    func on(_ event: EventType, transition: @escaping TransitionCallback<StateType, InfoType, EventType>) -> Self
 
     ///
     /// Adds an event/execution pair to the last added state
     ///
-    func exec(_ event: EventType, execution: @escaping ExecutionCallback<StateBinderType,InfoType,EventType>) -> Self
+    func exec(_ event: EventType, execution: @escaping ExecutionCallback<StateType, InfoType, EventType>) -> Self
 }

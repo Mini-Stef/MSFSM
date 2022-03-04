@@ -16,18 +16,24 @@ import Foundation   //  TimeInterval
 ///
 /// A FSM class that binds its state to a variable stored elsewhere
 ///
-public class BindableFSM<StateBinderType: StateBinder, InfoType, EventType: FSMEvent>: FSM {
+public class BindableFSM<StateType: FSMState, InfoType, EventType: FSMEvent>: FSM {
     
+    //------------------------------------------------------------------------------------------------------------------
+    //  MARK:   -   Types
+
+    /// Shortcut to the type erasing class for AnyStateBinder<StateType>
+    public typealias StateBinderType   = AnyStateBinder<StateType>
+
     //------------------------------------------------------------------------------------------------------------------
     //  MARK:   -   Properties
 
     /// The FSM structure
-    private let structure:   FSMStructure<StateBinderType,InfoType,EventType>
+    private let structure:   FSMStructure<StateType, InfoType, EventType>
     
     //------------------------------------------------------------------------------------------------------------------
     //  MARK:   -   Init
 
-    public init(structure:          FSMStructure<StateBinderType,InfoType,EventType>) {
+    public init(structure:          FSMStructure<StateType, InfoType, EventType>) {
         self.structure          = structure
     }
     
@@ -36,12 +42,23 @@ public class BindableFSM<StateBinderType: StateBinder, InfoType, EventType: FSME
 
     public func activate(binder:   StateBinderType,
                          info:     InfoType) {
-        binder.state    = self.structure.initialState!
+        if self.structure.hasMemory {
+            if let memory = binder.memory {
+                binder.state    = memory
+            } else {
+                binder.state    = self.structure.initialState!
+            }
+        } else {
+            binder.state    = self.structure.initialState!
+        }
         self.structure.enter(binder: binder, info: info)
     }
 
     public func deactivate(binder:   StateBinderType,
                            info:     InfoType) {
+        if self.structure.hasMemory {
+            binder.memory   = binder.state
+        }
         self.structure.leave(binder: binder, info: info)
         binder.state    = nil
     }
