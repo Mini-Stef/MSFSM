@@ -22,12 +22,12 @@ enum Event: Int, FSMEvent {
 
 let fsm = SimplestFSM<State, Event>()
     .initial(.healthy)
-        .on(.hit)           { _,_,_ in return .wounded }
-        .on(.severeHit)     { _,_,_ in return .dead }
+        .on(.hit)           { _,_,_,_ in return .wounded }
+        .on(.severeHit)     { _,_,_,_ in return .dead }
     .state(.wounded)
-        .on(.hit)           { _,_,_ in return .dead }
-        .on(.severeHit)     { _,_,_ in return .dead }
-        .on(.heal)          { _,_,_ in return .healthy }
+        .on(.hit)           { _,_,_,_ in return .dead }
+        .on(.severeHit)     { _,_,_,_ in return .dead }
+        .on(.heal)          { _,_,_,_ in return .healthy }
     .state(.dead)
 ```
 
@@ -38,4 +38,13 @@ let fsm = SimplestFSM<State, Event>()
 ## Doc and Unit Tests
 
 Beyond the code, the package comes with **full DocC documentation**, and **unit tests covering 91,4% of the code**. The uncovered part is just basic error handling that calls fatalerror upon programmer errors.
+
+
+
+## History
+
+**Release 1.1.0**
+
+I added some time parameters to all FSM methods. This is because I am using FSM in AI, and time is important.
+Now, if you don't have time in your application, I set a default value of time to 0, so you don't have to care. That also keeps the API compatible... well almost, as callbacks have yet another parameter. But hey, as nobody's following this package (yet ?), this small break is no problem :-)
 

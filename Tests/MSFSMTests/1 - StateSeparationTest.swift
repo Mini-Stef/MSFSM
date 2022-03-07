@@ -28,12 +28,12 @@ class StateSeparationTest: XCTestCase {
 
     static let healthFSMStructure  = FSMStructure<State, Void, Event>()
         .initial(.healthy)
-            .on(.hit)           { _,_,_ in return .wounded }
-            .on(.severeHit)     { _,_,_ in return .dead }
+            .on(.hit)           { _,_,_,_ in return .wounded }
+            .on(.severeHit)     { _,_,_,_ in return .dead }
         .state(.wounded)
-            .on(.hit)           { _,_,_ in return .dead }
-            .on(.severeHit)     { _,_,_ in return .dead }
-            .on(.heal)          { _,_,_ in return .healthy }
+            .on(.hit)           { _,_,_,_ in return .dead }
+            .on(.severeHit)     { _,_,_,_ in return .dead }
+            .on(.heal)          { _,_,_,_ in return .healthy }
         .state(.dead)
 
     class MyClass: StateBinder {
@@ -55,20 +55,20 @@ class StateSeparationTest: XCTestCase {
         
         //  Test initial state
         XCTAssert(myClass.state == nil)
-        myClass.fsm.activate(binder: AnyStateBinder(myClass))
+        myClass.fsm.activate(time: 0, binder: AnyStateBinder(myClass))
         XCTAssert(myClass.state == .healthy)
 
         //  Test wrong event
-        myClass.fsm.process(event: .heal, binder: AnyStateBinder(myClass))
+        myClass.fsm.process(event: .heal, time: 0, binder: AnyStateBinder(myClass))
         let _ = myClass.fsm.update(time: 0, binder: AnyStateBinder(myClass))
         XCTAssert(myClass.state == .healthy)
 
         //  Test good event
-        myClass.fsm.process(event: .hit, binder: AnyStateBinder(myClass))
+        myClass.fsm.process(event: .hit, time: 0, binder: AnyStateBinder(myClass))
         XCTAssert(myClass.state == .wounded)
         
         //  Deactivate
-        myClass.fsm.deactivate(binder: AnyStateBinder(myClass))
+        myClass.fsm.deactivate(time: 0, binder: AnyStateBinder(myClass))
         XCTAssert(myClass.state == nil)
     }
 }
@@ -97,12 +97,12 @@ class StateSeparationTest2: XCTestCase {
 
     static let healthFSMStructure  = FSMStructure<State, Void, Event>()
         .initial(.healthy)
-            .on(.hit)           { _,_,_ in return .wounded }
-            .on(.severeHit)     { _,_,_ in return .dead }
+            .on(.hit)           { _,_,_,_ in return .wounded }
+            .on(.severeHit)     { _,_,_,_ in return .dead }
         .state(.wounded)
-            .on(.hit)           { _,_,_ in return .dead }
-            .on(.severeHit)     { _,_,_ in return .dead }
-            .on(.heal)          { _,_,_ in return .healthy }
+            .on(.hit)           { _,_,_,_ in return .dead }
+            .on(.severeHit)     { _,_,_,_ in return .dead }
+            .on(.heal)          { _,_,_,_ in return .healthy }
         .state(.dead)
 
 
@@ -129,20 +129,20 @@ class StateSeparationTest2: XCTestCase {
         
         //  Test initial state
         XCTAssert(myClass.healthStatus == nil)
-        myClass.fsm.activate(binder: AnyStateBinder(myClass.healthStatusBinder))
+        myClass.fsm.activate(time: 0, binder: AnyStateBinder(myClass.healthStatusBinder))
         XCTAssert(myClass.healthStatus == .healthy)
 
         //  Test wrong event
-        myClass.fsm.process(event: .heal, binder: AnyStateBinder(myClass.healthStatusBinder))
+        myClass.fsm.process(event: .heal, time: 0, binder: AnyStateBinder(myClass.healthStatusBinder))
         let _ = myClass.fsm.update(time: 0, binder: AnyStateBinder(myClass.healthStatusBinder))
         XCTAssert(myClass.healthStatus == .healthy)
 
         //  Test good event
-        myClass.fsm.process(event: .hit, binder: AnyStateBinder(myClass.healthStatusBinder))
+        myClass.fsm.process(event: .hit, time: 0, binder: AnyStateBinder(myClass.healthStatusBinder))
         XCTAssert(myClass.healthStatus == .wounded)
         
         //  Deactivate
-        myClass.fsm.deactivate(binder: AnyStateBinder(myClass.healthStatusBinder))
+        myClass.fsm.deactivate(time: 0, binder: AnyStateBinder(myClass.healthStatusBinder))
         XCTAssert(myClass.healthStatus == nil)
     }
 

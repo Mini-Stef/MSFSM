@@ -107,7 +107,8 @@ public protocol FSM {
     ///
     /// The initial state is entered (with its entry callback called, if any).
     ///
-    func activate(binder:   StateBinderType,
+    func activate(time:   TimeInterval,
+                  binder:   StateBinderType,
                   info:     InfoType)
 
     ///
@@ -115,7 +116,8 @@ public protocol FSM {
     ///
     /// The current state is left (with its exit callback called, if any).
     ///
-    func deactivate(binder: StateBinderType,
+    func deactivate(time:   TimeInterval,
+                    binder: StateBinderType,
                     info:   InfoType)
 
     ///
@@ -141,6 +143,7 @@ public protocol FSM {
     ///     - the execution callback is executed
     ///
     func process(event:     EventType,
+                 time:      TimeInterval,
                  binder:    StateBinderType,
                  info:      InfoType)
 }
@@ -152,7 +155,7 @@ public protocol FSM {
 
 /// State enter and leave callback
 public typealias StateEnterOrLeaveCallback<StateType:       FSMState,
-                                           InfoType>        = ((AnyStateBinder<StateType>,InfoType) -> ())
+                                           InfoType>        = ((TimeInterval,AnyStateBinder<StateType>,InfoType) -> ())
 
 /// State update callback
 public typealias StateUpdateCallback<StateType:             FSMState,
@@ -165,13 +168,17 @@ public typealias StateUpdateCallback<StateType:             FSMState,
 public typealias TransitionCallback<StateType:              FSMState,
                                     InfoType,
                                     EventType: FSMEvent>    = ((EventType,
+                                                                TimeInterval,
                                                                 AnyStateBinder<StateType>,
                                                                 InfoType) -> StateType)
 
 /// An executon callback processes an event without changing the state
 public typealias ExecutionCallback<StateType:               FSMState,
                                    InfoType,
-                                   EventType: FSMEvent>     = ((EventType, AnyStateBinder<StateType>, InfoType) -> ())
+                                   EventType: FSMEvent>     = ((EventType,
+                                                                TimeInterval,
+                                                                AnyStateBinder<StateType>,
+                                                                InfoType) -> ())
 
 
 

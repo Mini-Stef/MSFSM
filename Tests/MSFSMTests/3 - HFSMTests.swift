@@ -21,9 +21,9 @@ enum SleepingEvent: FSMEvent {
 
 let sleepingFSMStructure = FSMStructure<SleepingState, Void, SleepingEvent>()
     .memory(.asleep)
-        .on(.awake)     { _,_,_ in return .awaken }
+        .on(.awake)     { _,_,_,_ in return .awaken }
     .state(.awaken)
-        .on(.goToSleep) { _,_,_ in return .asleep }
+        .on(.goToSleep) { _,_,_,_ in return .asleep }
 
 
 
@@ -107,19 +107,19 @@ protocol SleepStateBinderProvider {
 //  And we don't forget to forward sleep/awake events to teh sub FSM in our execution callacks on alive state
 let healthFSMStructure = FSMStructure<HealthState, SleepStateBinderProvider & HealthHolder, HealthEvent>()
     .initial(.alive)
-        .didEnter       { binder,info in
+        .didEnter       { _,binder,info in
             let aliveState  = binder.state!
             if case let .alive(subFsm) = aliveState {
-                subFsm.activate(binder: info.sleepStatusBinder!)
+                subFsm.activate(time: 0, binder: info.sleepStatusBinder!)
             }
         }
-        .willLeave      { binder,info in
+        .willLeave      { _,binder,info in
             let aliveState  = binder.state!
             if case let .alive(subFsm) = aliveState {
-                subFsm.deactivate(binder: info.sleepStatusBinder!)
+                subFsm.deactivate(time: 0, binder: info.sleepStatusBinder!)
             }
         }
-        .on(.hit)       { event,_,healthHolder in
+        .on(.hit)       { event,_,_,healthHolder in
             if case let .hit(hitValue) = event {
                 healthHolder.health -= hitValue
                 if healthHolder.health <= 0 {
@@ -128,21 +128,21 @@ let healthFSMStructure = FSMStructure<HealthState, SleepStateBinderProvider & He
             }
             return .alive
         }
-        .exec(.heal)          { event,_,healthHolder in
+        .exec(.heal)          { event,_,_,healthHolder in
             if case let .heal(healValue) = event {
                 healthHolder.health += healValue
             }
         }
-        .exec(.goToSleep) { _,binder,info in
+        .exec(.goToSleep) { _,_,binder,info in
             let aliveState  = binder.state!
             if case let .alive(subFsm) = aliveState {
-                subFsm.process(event: .goToSleep, binder: info.sleepStatusBinder!)
+                subFsm.process(event: .goToSleep, time: 0, binder: info.sleepStatusBinder!)
             }
         }
-        .exec(.awake) { _,binder,info in
+        .exec(.awake) { _,_,binder,info in
             let aliveState  = binder.state!
             if case let .alive(subFsm) = aliveState {
-                subFsm.process(event: .awake, binder: info.sleepStatusBinder!)
+                subFsm.process(event: .awake, time: 0, binder: info.sleepStatusBinder!)
             }
         }
     .state(.dead)
@@ -183,32 +183,32 @@ class HFSM: XCTestCase {
         XCTAssert(character.sleepState == nil)
         XCTAssert(character.health == 100)
         
-        character.fsm.activate(binder: character.healthStatusBinder, info: character)
+        character.fsm.activate(time: 0, binder: character.healthStatusBinder, info: character)
         XCTAssert(character.healthState == .alive)
         XCTAssert(character.sleepState == .asleep)
         XCTAssert(character.health == 100)
 
-        character.fsm.process(event: .heal(10), binder: character.healthStatusBinder, info: character)
+        character.fsm.process(event: .heal(10), time: 0, binder: character.healthStatusBinder, info: character)
         XCTAssert(character.healthState == .alive)
         XCTAssert(character.sleepState == .asleep)
         XCTAssert(character.health == 110)
 
-        character.fsm.process(event: .hit(50), binder: character.healthStatusBinder, info: character)
+        character.fsm.process(event: .hit(50), time: 0, binder: character.healthStatusBinder, info: character)
         XCTAssert(character.healthState == .alive)
         XCTAssert(character.sleepState == .asleep)
         XCTAssert(character.health == 60)
 
-        character.fsm.process(event: .awake, binder: character.healthStatusBinder, info: character)
+        character.fsm.process(event: .awake, time: 0, binder: character.healthStatusBinder, info: character)
         XCTAssert(character.healthState == .alive)
         XCTAssert(character.sleepState == .awaken)
         XCTAssert(character.health == 60)
 
-        character.fsm.process(event: .hit(40), binder: character.healthStatusBinder, info: character)
+        character.fsm.process(event: .hit(40), time: 0, binder: character.healthStatusBinder, info: character)
         XCTAssert(character.healthState == .alive)
         XCTAssert(character.sleepState == .awaken)
         XCTAssert(character.health == 20)
 
-        character.fsm.process(event: .hit(40), binder: character.healthStatusBinder, info: character)
+        character.fsm.process(event: .hit(40), time: 0, binder: character.healthStatusBinder, info: character)
         XCTAssert(character.healthState == .dead)
         XCTAssert(character.sleepState == nil)
         XCTAssert(character.health == -20)

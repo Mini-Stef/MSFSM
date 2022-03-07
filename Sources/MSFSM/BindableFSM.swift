@@ -40,7 +40,8 @@ public class BindableFSM<StateType: FSMState, InfoType, EventType: FSMEvent>: FS
     //------------------------------------------------------------------------------------------------------------------
     //  MARK:   -   Action !
 
-    public func activate(binder:   StateBinderType,
+    public func activate(time:      TimeInterval = 0,
+                         binder:   StateBinderType,
                          info:     InfoType) {
         if self.structure.hasMemory {
             if let memory = binder.memory {
@@ -51,28 +52,31 @@ public class BindableFSM<StateType: FSMState, InfoType, EventType: FSMEvent>: FS
         } else {
             binder.state    = self.structure.initialState!
         }
-        self.structure.enter(binder: binder, info: info)
+        self.structure.enter(time: time, binder: binder, info: info)
     }
 
-    public func deactivate(binder:   StateBinderType,
+    public func deactivate(time:      TimeInterval = 0,
+                           binder:   StateBinderType,
                            info:     InfoType) {
         if self.structure.hasMemory {
             binder.memory   = binder.state
         }
-        self.structure.leave(binder: binder, info: info)
+        self.structure.leave(time: time, binder: binder, info: info)
         binder.state    = nil
     }
 
-    public func update(time:   TimeInterval,
+    public func update(time:   TimeInterval = 0,
                        binder: StateBinderType,
                        info:   InfoType) -> EventType? {
         self.structure.update(time: time, binder: binder, info: info)
     }
     
     public func process(event:     EventType,
+                        time:      TimeInterval = 0,
                         binder:    StateBinderType,
                         info:      InfoType) {
         self.structure.reactTo(event:   event,
+                               time:    time,
                                binder:  binder,
                                info:    info)
     }
@@ -84,21 +88,24 @@ public class BindableFSM<StateType: FSMState, InfoType, EventType: FSMEvent>: FS
 //  MARK:   - Simplification for Void information
 
 public extension BindableFSM where InfoType == Void {
-    func activate(binder:   StateBinderType) {
-        self.activate(binder: binder, info: (()))
+    func activate(time:      TimeInterval = 0,
+                  binder:   StateBinderType) {
+        self.activate(time: time, binder: binder, info: (()))
     }
     
-    func deactivate(binder:   StateBinderType) {
-        self.deactivate(binder: binder, info: (()))
+    func deactivate(time:      TimeInterval = 0,
+                    binder:   StateBinderType) {
+        self.deactivate(time: time, binder: binder, info: (()))
     }
     
-    func update(time:   TimeInterval,
+    func update(time:   TimeInterval = 0,
                 binder: StateBinderType) -> EventType? {
         self.update(time: time, binder: binder, info: (()))
     }
     
     func process(event:     EventType,
+                 time:      TimeInterval = 0,
                  binder:    StateBinderType) {
-        self.process(event: event, binder: binder, info: (()))
+        self.process(event: event, time: time, binder: binder, info: (()))
     }
 }

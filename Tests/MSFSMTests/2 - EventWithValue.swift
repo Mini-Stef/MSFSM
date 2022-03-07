@@ -54,14 +54,14 @@ class EventWithValueTests: XCTestCase {
 
     static let fsmStructure = FSMStructure<State, HealthHolder, Event>()
         .initial(.alive)
-            .on(.hit)        { event,_,healthHolder in
+            .on(.hit)        { event,_,_,healthHolder in
                 healthHolder.health -= event.value
                 if healthHolder.health <= 0 {
                     return .dead
                 }
                 return .alive
             }
-            .on(.heal)          { event,_,healthHolder in
+            .on(.heal)          { event,_,_,healthHolder in
                 healthHolder.health += event.value
                 return .alive
             }
@@ -82,21 +82,21 @@ class EventWithValueTests: XCTestCase {
         
         //  Test initial state
         XCTAssert(character.state == nil)
-        fsm.activate(binder: AnyStateBinder(character), info: character)
+        fsm.activate(time: 0, binder: AnyStateBinder(character), info: character)
         XCTAssert(character.state == .alive)
 
         //  Test first hit
-        fsm.process(event: Event(label: .hit, value: 70), binder: AnyStateBinder(character), info: character)
+        fsm.process(event: Event(label: .hit, value: 70), time: 0, binder: AnyStateBinder(character), info: character)
         XCTAssert(character.state == .alive)
         XCTAssert(character.health == 30)
 
         //  Test heal
-        fsm.process(event: Event(label: .heal, value: 10), binder: AnyStateBinder(character), info: character)
+        fsm.process(event: Event(label: .heal, value: 10), time: 0, binder: AnyStateBinder(character), info: character)
         XCTAssert(character.state == .alive)
         XCTAssert(character.health == 40)
 
         //  Kill !
-        fsm.process(event: Event(label: .hit, value: 70), binder: AnyStateBinder(character), info: character)
+        fsm.process(event: Event(label: .hit, value: 70), time: 0, binder: AnyStateBinder(character), info: character)
         XCTAssert(character.state == .dead)
     }
 

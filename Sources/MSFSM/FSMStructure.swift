@@ -190,9 +190,10 @@ public class FSMStructure<StateType: FSMState, InfoType, EventType: FSMEvent>: B
     ///
     /// Calls the entrance callback of a state
     ///
-    public func enter(binder:   StateBinderType,
+    public func enter(time:   TimeInterval,
+                      binder:   StateBinderType,
                       info:     InfoType) {
-        self.eventTransitionTable[binder.state!]!.stateDef.didEnterClbk?(binder, info)
+        self.eventTransitionTable[binder.state!]!.stateDef.didEnterClbk?(time, binder, info)
     }
     
     ///
@@ -209,9 +210,10 @@ public class FSMStructure<StateType: FSMState, InfoType, EventType: FSMEvent>: B
     ///
     /// Calls the exit callback of a state
     ///
-    public func leave(binder:   StateBinderType,
+    public func leave(time:   TimeInterval,
+                      binder:   StateBinderType,
                       info:     InfoType) {
-        self.eventTransitionTable[binder.state!]!.stateDef.willLeaveClbk?(binder, info)
+        self.eventTransitionTable[binder.state!]!.stateDef.willLeaveClbk?(time, binder, info)
     }
 
     
@@ -229,17 +231,18 @@ public class FSMStructure<StateType: FSMState, InfoType, EventType: FSMEvent>: B
     ///     - just execute this callback
     ///
     public func reactTo(event:  EventType,
+                        time:   TimeInterval,
                         binder: StateBinderType,
                         info:   InfoType) {
         if let callback = self.eventTransitionTable[binder.state!]?.events[event] {
             switch callback {
             case .transition(let transition):
-                self.leave(binder: binder, info: info)
-                let nextState   = transition(event, binder, info)
+                self.leave(time: time, binder: binder, info: info)
+                let nextState   = transition(event, time, binder, info)
                 binder.state    = nextState
-                self.enter(binder: binder, info: info)
+                self.enter(time: time, binder: binder, info: info)
             case .execution(let execution):
-                execution(event, binder, info)
+                execution(event, time, binder, info)
             }
         }
     }

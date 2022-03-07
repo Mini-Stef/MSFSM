@@ -33,29 +33,29 @@ class SimpleFSMTests: XCTestCase {
         //
         let fsm = SimplestFSM<State, Event>()
             .initial(.healthy)
-                .on(.hit)           { _,_,_ in return .wounded }
-                .on(.severeHit)     { _,_,_ in return .dead }
+                .on(.hit)           { _,_,_,_ in return .wounded }
+                .on(.severeHit)     { _,_,_,_ in return .dead }
             .state(.wounded)
-                .on(.hit)           { _,_,_ in return .dead }
-                .on(.severeHit)     { _,_,_ in return .dead }
-                .on(.heal)          { _,_,_ in return .healthy }
+                .on(.hit)           { _,_,_,_ in return .dead }
+                .on(.severeHit)     { _,_,_,_ in return .dead }
+                .on(.heal)          { _,_,_,_ in return .healthy }
             .state(.dead)
-        fsm.activate()
+        fsm.activate(time: 0)
         
         //  Test initial state
         XCTAssert(fsm.state == .healthy)
         
         //  Test wrong event
-        fsm.process(event: .heal)
+        fsm.process(event: .heal, time: 0)
         let _ = fsm.update(time: 0)
         XCTAssert(fsm.state == .healthy)
 
         //  Test good event
-        fsm.process(event: .hit)
+        fsm.process(event: .hit, time: 0)
         XCTAssert(fsm.state == .wounded)
         
         //  Deactivate
-        fsm.deactivate()
+        fsm.deactivate(time: 0)
         XCTAssert(fsm.state == nil)
     }
 
@@ -79,33 +79,33 @@ class SimpleFSMTests: XCTestCase {
 
         let fsm = SimpleFSM<State, Info, Event>()
             .initial(.healthy)
-                .willLeave          { _,info in info.hasLeftHealthy = true }
-                .on(.hit)           { _,_,_ in return .wounded }
-                .on(.severeHit)     { _,_,_ in return .dead }
+                .willLeave          { _,_,info in info.hasLeftHealthy = true }
+                .on(.hit)           { _,_,_,_ in return .wounded }
+                .on(.severeHit)     { _,_,_,_ in return .dead }
             .state(.wounded)
                 .update             { _,_,info in info.hasUpdatedWounded = true ; return nil }
-                .on(.hit)           { _,_,_ in return .dead }
-                .on(.severeHit)     { _,_,_ in return .dead }
-                .on(.heal)          { _,_,_ in return .healthy }
-                .exec(.shout)       { _,_,info in info.hasShouted = true }
+                .on(.hit)           { _,_,_,_ in return .dead }
+                .on(.severeHit)     { _,_,_,_ in return .dead }
+                .on(.heal)          { _,_,_,_ in return .healthy }
+                .exec(.shout)       { _,_,_,info in info.hasShouted = true }
             .state(.dead)
-                .didEnter           { _,info in info.hasEnteredDead = true }
-        fsm.activate(info: info)
+                .didEnter           { _,_,info in info.hasEnteredDead = true }
+        fsm.activate(time: 0, info: info)
         
         //  Test initial state
         XCTAssert(fsm.state == .healthy)
         
         //  Test wrong event
         XCTAssert(info.hasLeftHealthy == false)
-        fsm.process(event: .heal, info: info)
+        fsm.process(event: .heal, time: 0, info: info)
         XCTAssert(fsm.state == .healthy)
         XCTAssert(info.hasLeftHealthy == false)
 
         //  Test good event
         XCTAssert(info.hasUpdatedWounded == false)
         XCTAssert(info.hasShouted == false)
-        fsm.process(event: .hit, info: info)
-        fsm.process(event: .shout, info: info)
+        fsm.process(event: .hit, time: 0, info: info)
+        fsm.process(event: .shout, time: 0, info: info)
         let _ = fsm.update(time: 0, info: info)
         XCTAssert(fsm.state == .wounded)
         XCTAssert(info.hasLeftHealthy == true)
@@ -114,12 +114,12 @@ class SimpleFSMTests: XCTestCase {
         
         //  Kill !
         XCTAssert(info.hasEnteredDead == false)
-        fsm.process(event: .hit, info: info)
+        fsm.process(event: .hit, time: 0, info: info)
         XCTAssert(fsm.state == .dead)
         XCTAssert(info.hasEnteredDead == true)
 
         //  Deactivate
-        fsm.deactivate(info: info)
+        fsm.deactivate(time: 0, info: info)
         XCTAssert(fsm.state == nil)
     }
 }

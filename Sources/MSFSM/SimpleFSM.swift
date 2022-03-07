@@ -118,22 +118,25 @@ public class SimpleFSM<StateType: FSMState, InfoType, EventType: FSMEvent>: Buil
     //------------------------------------------------------------------------------------------------------------------
     //  MARK:   -   Action !
 
-    public func activate(info:     InfoType) {
-        self.fsm.activate(binder: AnyStateBinder(self), info: info)
+    public func activate(time:  TimeInterval = 0,
+                         info:  InfoType) {
+        self.fsm.activate(time: time, binder: AnyStateBinder(self), info: info)
     }
     
-    public func deactivate(info:     InfoType) {
-        self.fsm.deactivate(binder: AnyStateBinder(self), info: info)
+    public func deactivate(time:    TimeInterval = 0,
+                           info:    InfoType) {
+        self.fsm.deactivate(time: time, binder: AnyStateBinder(self), info: info)
     }
     
-    public func update(time:   TimeInterval,
+    public func update(time:   TimeInterval = 0,
                        info:   InfoType) -> EventType? {
         self.fsm.update(time: time, binder: AnyStateBinder(self), info: info)
     }
     
     public func process(event:     EventType,
+                        time:   TimeInterval = 0,
                         info:      InfoType) {
-        self.fsm.process(event: event, binder: AnyStateBinder(self), info: info)
+        self.fsm.process(event: event, time: time, binder: AnyStateBinder(self), info: info)
     }
 }
 
@@ -143,20 +146,21 @@ public class SimpleFSM<StateType: FSMState, InfoType, EventType: FSMEvent>: Buil
 //  MARK:   - Simplification for Void information
 
 public extension SimpleFSM where InfoType == Void {
-    func activate() {
-        self.fsm.activate(binder: AnyStateBinder(self), info: (()))
+    func activate(time:  TimeInterval = 0) {
+        self.fsm.activate(time: time, binder: AnyStateBinder(self), info: (()))
     }
     
-    func deactivate() {
-        self.fsm.deactivate(binder: AnyStateBinder(self), info: (()))
+    func deactivate(time:  TimeInterval = 0) {
+        self.fsm.deactivate(time: time, binder: AnyStateBinder(self), info: (()))
     }
     
-    func update(time:   TimeInterval) -> EventType? {
+    func update(time:   TimeInterval = 0) -> EventType? {
         self.fsm.update(time: time, binder: AnyStateBinder(self), info: (()))
     }
     
-    func process(event:     EventType) {
-        self.fsm.process(event: event, binder: AnyStateBinder(self), info: (()))
+    func process(event:     EventType,
+                 time:  TimeInterval = 0) {
+        self.fsm.process(event: event, time: time, binder: AnyStateBinder(self), info: (()))
     }
 }
 

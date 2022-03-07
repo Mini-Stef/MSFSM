@@ -30,12 +30,12 @@ enum Event: Int, FSMEvent {
 
 let fsm = SimplestFSM<State, Event>()
     .initial(.healthy)
-        .on(.hit)           { _,_,_ in return .wounded }
-        .on(.severeHit)     { _,_,_ in return .dead }
+        .on(.hit)           { _,_,_,_ in return .wounded }
+        .on(.severeHit)     { _,_,_,_ in return .dead }
     .state(.wounded)
-        .on(.hit)           { _,_,_ in return .dead }
-        .on(.severeHit)     { _,_,_ in return .dead }
-        .on(.heal)          { _,_,_ in return .healthy }
+        .on(.hit)           { _,_,_,_ in return .dead }
+        .on(.severeHit)     { _,_,_,_ in return .dead }
+        .on(.heal)          { _,_,_,_ in return .healthy }
     .state(.dead)
 ```
 
@@ -54,12 +54,12 @@ The ``SimplestFSM`` class holds its own `state` property, so it comes as ready-t
 
 let healthFSMStructure  = FSMStructure<State, Void, Event>()
     .initial(.healthy)
-        .on(.hit)           { _,_,_ in return .wounded }
-        .on(.severeHit)     { _,_,_ in return .dead }
+        .on(.hit)           { _,_,_,_ in return .wounded }
+        .on(.severeHit)     { _,_,_,_ in return .dead }
     .state(.wounded)
-        .on(.hit)           { _,_,_ in return .dead }
-        .on(.severeHit)     { _,_,_ in return .dead }
-        .on(.heal)          { _,_,_ in return .healthy }
+        .on(.hit)           { _,_,_,_ in return .dead }
+        .on(.severeHit)     { _,_,_,_ in return .dead }
+        .on(.heal)          { _,_,_,_ in return .healthy }
     .state(.dead)
 
 
@@ -161,14 +161,14 @@ protocol HealthHolder: AnyObject {
 
 let fsmStructure = FSMStructure<State, HealthHolder, Event>()
     .initial(.alive)
-        .on(.hit)        { event,_,healthHolder in
+        .on(.hit)        { event,_,_,healthHolder in
             healthHolder.health -= event.value
             if healthHolder.health <= 0 {
                 return .dead
             }
             return .alive
         }
-        .on(.heal)          { event,_,healthHolder in
+        .on(.heal)          { event,_,_,healthHolder in
             healthHolder.health += event.value
             return .alive
         }
@@ -198,16 +198,16 @@ Here is an example of FSM declaration with callbacks. Still very clean and reada
 ```
 let fsm = SimpleFSM<State, Info, Event>()
     .initial(.healthy)
-        .willLeave          { _,info in info.hasLeftHealthy = true }
-        .on(.hit)           { _,_,_ in return .wounded }
-        .on(.severeHit)     { _,_,_ in return .dead }
+        .willLeave          { _,_,info in info.hasLeftHealthy = true }
+        .on(.hit)           { _,_,_,_ in return .wounded }
+        .on(.severeHit)     { _,_,_,_ in return .dead }
     .state(.wounded)
-        .update             { _,_,info in info.hasUpdatedWounded = true ; return nil }
-        .on(.hit)           { _,_,_ in return .dead }
-        .on(.severeHit)     { _,_,_ in return .dead }
-        .on(.heal)          { _,_,_ in return .healthy }
+        .update             { _,_,_,info in info.hasUpdatedWounded = true ; return nil }
+        .on(.hit)           { _,_,_,_ in return .dead }
+        .on(.severeHit)     { _,_,_,_ in return .dead }
+        .on(.heal)          { _,_,_,_ in return .healthy }
     .state(.dead)
-        .didEnter           { _,info in info.hasEnteredDead = true }
+        .didEnter           { _,_,info in info.hasEnteredDead = true }
 ```
 
 
@@ -247,9 +247,9 @@ enum SleepingEvent: FSMEvent {
 
 let sleepingFSMStructure = FSMStructure<SleepingState, Void, SleepingEvent>()
     .initial(.awaken)
-        .on(.goToSleep) { _,_,_ in return .asleep }
+        .on(.goToSleep) { _,_,_,_ in return .asleep }
     .state(.asleep)
-        .on(.awake)     { _,_,_ in return .awaken }
+        .on(.awake)     { _,_,_,_ in return .awaken }
 
 
 
@@ -331,19 +331,19 @@ protocol SleepStateBinderProvider {
 //  And we don't forget to forward sleep/awake events to teh sub FSM in our execution callacks on alive state
 let healthFSMStructure = FSMStructure<HealthState, SleepStateBinderProvider & HealthHolder, HealthEvent>()
     .initial(.alive)
-        .didEnter       { binder,info in
+        .didEnter       { _,binder,info in
             let aliveState  = binder.state!
             if case let .alive(subFsm) = aliveState {
                 subFsm.activate(binder: info.sleepStatusBinder!)
             }
         }
-        .willLeave      { binder,info in
+        .willLeave      { _,binder,info in
             let aliveState  = binder.state!
             if case let .alive(subFsm) = aliveState {
                 subFsm.deactivate(binder: info.sleepStatusBinder!)
             }
         }
-        .on(.hit)       { event,_,healthHolder in
+        .on(.hit)       { event,_,_,healthHolder in
             if case let .hit(hitValue) = event {
                 healthHolder.health -= hitValue
                 if healthHolder.health <= 0 {
@@ -352,18 +352,18 @@ let healthFSMStructure = FSMStructure<HealthState, SleepStateBinderProvider & He
             }
             return .alive
         }
-        .exec(.heal)          { event,_,healthHolder in
+        .exec(.heal)          { event,_,_,healthHolder in
             if case let .heal(healValue) = event {
                 healthHolder.health += healValue
             }
         }
-        .exec(.goToSleep) { _,binder,info in
+        .exec(.goToSleep) { _,_,binder,info in
             let aliveState  = binder.state!
             if case let .alive(subFsm) = aliveState {
                 subFsm.process(event: .goToSleep, binder: info.sleepStatusBinder!)
             }
         }
-        .exec(.awake) { _,binder,info in
+        .exec(.awake) { _,_,binder,info in
             let aliveState  = binder.state!
             if case let .alive(subFsm) = aliveState {
                 subFsm.process(event: .awake, binder: info.sleepStatusBinder!)
